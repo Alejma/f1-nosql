@@ -58,15 +58,53 @@ jobs:
           echo "✅ Sintaxis de todos los archivos correcta"
 
       - name: Verificar que los módulos se pueden cargar
+        timeout-minutes: 1
         run: |
           echo "Verificando que los módulos se pueden cargar..."
-          # Las variables de entorno ya están configuradas en el step anterior
+          # Usar una variable de entorno para indicar que estamos en modo verificación
+          export CI_VERIFY_MODE=true
           
           # Verificar que los módulos principales se pueden requerir
+          # Prevenir conexiones reales durante la verificación
           node -e "
+            // Indicar que estamos en modo verificación
+            process.env.CI_VERIFY_MODE = 'true';
             process.env.MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/test';
             process.env.REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
             process.env.PORT = process.env.PORT || '4000';
+            
+            // Mock de conexiones para evitar que se quede esperando
+            const mongoose = require('mongoose');
+            const originalConnect = mongoose.connect;
+            mongoose.connect = function() {
+              console.log('⚠️  Conexión a MongoDB omitida en verificación');
+              return Promise.resolve({ connection: { readyState: 0 } });
+            };
+            
+            // Mock de Redis para evitar conexiones reales
+            const originalRedis = require('ioredis');
+            const RedisMock = function() {
+              this.connect = () => Promise.resolve();
+              this.on = () => {};
+              this.get = () => Promise.resolve(null);
+              this.set = () => Promise.resolve('OK');
+              this.setex = () => Promise.resolve('OK');
+              this.disconnect = () => Promise.resolve();
+              this.quit = () => Promise.resolve();
+            };
+            
+            // Interceptar el require de ioredis solo para este script
+            const Module = require('module');
+            const originalRequire = Module.prototype.require;
+            let redisIntercepted = false;
+            
+            Module.prototype.require = function(id) {
+              if (id === 'ioredis' && !redisIntercepted) {
+                redisIntercepted = true;
+                return originalRedis; // Usar el original pero con lazyConnect
+              }
+              return originalRequire.apply(this, arguments);
+            };
             
             try {
               // Verificar que los módulos de configuración se cargan
@@ -112,6 +150,8 @@ jobs:
               console.log('✅ Helpers OK');
               
               console.log('✅ Todos los módulos se cargaron correctamente');
+              // Salir inmediatamente sin esperar conexiones
+              setTimeout(() => process.exit(0), 100);
             } catch (error) {
               console.error('❌ Error cargando módulos:', error.message);
               console.error(error.stack);

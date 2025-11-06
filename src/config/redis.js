@@ -48,14 +48,21 @@ const connectRedis = () => {
     });
 
     // Intentar conectar, pero no bloquear si falla
-    redisClient.connect().catch((err) => {
-      isRedisAvailable = false;
-      if (err.code !== 'ECONNREFUSED') {
-        console.error('❌ Error conectando a Redis:', err.message);
-      } else {
-        console.warn('⚠️  Redis no está disponible. La aplicación continuará sin funcionalidades de Redis.');
-      }
-    });
+    // Solo intentar conectar si no estamos en modo "lazyConnect"
+    // El modo lazyConnect significa que se conectará cuando se necesite
+    if (!redisClient.options.lazyConnect) {
+      redisClient.connect().catch((err) => {
+        isRedisAvailable = false;
+        if (err.code !== 'ECONNREFUSED') {
+          console.error('❌ Error conectando a Redis:', err.message);
+        } else {
+          console.warn('⚠️  Redis no está disponible. La aplicación continuará sin funcionalidades de Redis.');
+        }
+      });
+    } else {
+      // En modo lazyConnect, solo mostrar mensaje
+      console.log('ℹ️  Redis configurado en modo lazyConnect (se conectará cuando se necesite)');
+    }
 
     return redisClient;
   } catch (error) {
