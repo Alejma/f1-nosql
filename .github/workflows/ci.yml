@@ -25,8 +25,20 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
+      - name: Generar package-lock.json si no existe
+        run: |
+          if [ ! -f package-lock.json ]; then
+            echo "Generando package-lock.json..."
+            npm install --package-lock-only
+          fi
+
       - name: Instalar dependencias
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       - name: Verificar sintaxis del código
         run: |

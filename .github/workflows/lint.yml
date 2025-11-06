@@ -21,8 +21,20 @@ jobs:
           node-version: '20.x'
           cache: 'npm'
 
+      - name: Generar package-lock.json si no existe
+        run: |
+          if [ ! -f package-lock.json ]; then
+            echo "Generando package-lock.json..."
+            npm install --package-lock-only
+          fi
+
       - name: Instalar dependencias
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       - name: Verificar formato básico (opcional)
         run: |
