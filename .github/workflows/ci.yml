@@ -1,0 +1,130 @@
+name: CI - Verificación del Proyecto
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  verify:
+    name: Verificar Proyecto
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Verificar sintaxis del código
+        run: |
+          echo "Verificando sintaxis de archivos JavaScript..."
+          find src -name "*.js" -type f | while read file; do
+            echo "Verificando: $file"
+            node --check "$file" || exit 1
+          done
+          echo "✅ Sintaxis de todos los archivos correcta"
+
+      - name: Verificar que los módulos se pueden cargar
+        run: |
+          echo "Verificando que los módulos se pueden cargar..."
+          # Configurar variables de entorno para pruebas
+          export MONGO_URI="mongodb://localhost:27017/test"
+          export REDIS_URL="redis://localhost:6379"
+          export PORT=4000
+          
+          # Verificar que los módulos principales se pueden requerir
+          node -e "
+            process.env.MONGO_URI = 'mongodb://localhost:27017/test';
+            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.PORT = '4000';
+            
+            try {
+              // Verificar que los módulos de configuración se cargan
+              require('./src/config/mongo.js');
+              console.log('✅ Config MongoDB OK');
+              
+              require('./src/config/redis.js');
+              console.log('✅ Config Redis OK');
+              
+              require('./src/config/swagger.js');
+              console.log('✅ Config Swagger OK');
+              
+              // Verificar que los modelos se cargan
+              require('./src/models/Driver.js');
+              require('./src/models/Team.js');
+              require('./src/models/Race.js');
+              require('./src/models/Season.js');
+              console.log('✅ Modelos OK');
+              
+              // Verificar que los servicios se cargan
+              require('./src/services/driverService.js');
+              require('./src/services/teamService.js');
+              require('./src/services/raceService.js');
+              require('./src/services/standingsService.js');
+              console.log('✅ Servicios OK');
+              
+              // Verificar que las rutas se cargan
+              require('./src/routes/driverRoutes.js');
+              require('./src/routes/teamRoutes.js');
+              require('./src/routes/raceRoutes.js');
+              require('./src/routes/standingsRoutes.js');
+              console.log('✅ Rutas OK');
+              
+              // Verificar que los controladores se cargan
+              require('./src/controllers/driverController.js');
+              require('./src/controllers/teamController.js');
+              require('./src/controllers/raceController.js');
+              require('./src/controllers/standingsController.js');
+              console.log('✅ Controladores OK');
+              
+              // Verificar helpers
+              require('./src/utils/updateHelpers.js');
+              console.log('✅ Helpers OK');
+              
+              console.log('✅ Todos los módulos se cargaron correctamente');
+            } catch (error) {
+              console.error('❌ Error cargando módulos:', error.message);
+              console.error(error.stack);
+              process.exit(1);
+            }
+          "
+
+      - name: Verificar estructura de archivos
+        run: |
+          echo "Verificando estructura de archivos..."
+          test -f package.json || (echo "❌ Falta package.json" && exit 1)
+          test -f src/server.js || (echo "❌ Falta src/server.js" && exit 1)
+          test -d src/config || (echo "❌ Falta src/config" && exit 1)
+          test -d src/models || (echo "❌ Falta src/models" && exit 1)
+          test -d src/controllers || (echo "❌ Falta src/controllers" && exit 1)
+          test -d src/services || (echo "❌ Falta src/services" && exit 1)
+          test -d src/routes || (echo "❌ Falta src/routes" && exit 1)
+          echo "✅ Estructura de archivos correcta"
+
+      - name: Verificar dependencias críticas
+        run: |
+          echo "Verificando que las dependencias críticas están en package.json..."
+          node -e "
+            const pkg = require('./package.json');
+            const required = ['express', 'mongoose', 'ioredis', 'dotenv'];
+            const missing = required.filter(dep => !pkg.dependencies[dep]);
+            if (missing.length > 0) {
+              console.error('❌ Faltan dependencias:', missing.join(', '));
+              process.exit(1);
+            }
+            console.log('✅ Todas las dependencias críticas están presentes');
+          "
+

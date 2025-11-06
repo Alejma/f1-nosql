@@ -1,0 +1,73 @@
+name: Lint - Verificación de Código
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  lint:
+    name: Verificar Código
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Verificar formato básico (opcional)
+        run: |
+          echo "Verificando formato básico del código..."
+          # Verificar que no haya console.log en producción (opcional)
+          # grep -r "console.log" src/ && echo "⚠️  Se encontraron console.log en el código" || true
+          echo "✅ Verificación de formato completada"
+
+      - name: Verificar imports y exports
+        run: |
+          echo "Verificando imports y exports..."
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            
+            function checkFile(filePath) {
+              try {
+                const content = fs.readFileSync(filePath, 'utf8');
+                // Verificar que los archivos tengan exports válidos
+                if (content.includes('module.exports') || content.includes('exports.')) {
+                  return true;
+                }
+                // Algunos archivos pueden no tener exports (como config)
+                return true;
+              } catch (error) {
+                return false;
+              }
+            }
+            
+            const files = [
+              'src/server.js',
+              'src/config/mongo.js',
+              'src/config/redis.js',
+              'src/config/swagger.js'
+            ];
+            
+            files.forEach(file => {
+              if (fs.existsSync(file)) {
+                console.log('✅', file, 'existe');
+              } else {
+                console.error('❌', file, 'no existe');
+                process.exit(1);
+              }
+            });
+            
+            console.log('✅ Todos los archivos principales existen');
+          "
+

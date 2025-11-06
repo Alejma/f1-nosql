@@ -1,0 +1,491 @@
+# 🏎️ F1 Pro API
+
+[![CI - Verificación del Proyecto](https://github.com/USERNAME/f1-pro/actions/workflows/ci.yml/badge.svg)](https://github.com/USERNAME/f1-pro/actions/workflows/ci.yml)
+
+API REST para gestión de datos de Fórmula 1 usando MongoDB (base de datos desnormalizada) y Redis para telemetría y rankings en tiempo real.
+
+## 📋 Descripción
+
+Este proyecto implementa una API REST completa para gestionar información de Fórmula 1, incluyendo:
+
+- **Pilotos** (Drivers): información de cada piloto con sus puntos y posición actual
+- **Escuderías** (Teams): equipos con sus pilotos y puntos totales
+- **Carreras** (Races): registro de carreras con resultados detallados
+- **Temporadas** (Seasons): standings y carreras por año
+- **Telemetría en tiempo real**: datos de velocidad, posición, vueltas usando Redis
+- **Leaderboard**: rankings en tiempo real durante carreras activas
+
+### Características principales
+
+- ✅ **Desnormalización intencional**: Los datos se almacenan con redundancia para mejorar el rendimiento de lectura
+- ✅ **Sincronización automática**: Funciones que mantienen la consistencia de datos redundantes
+- ✅ **Redis para tiempo real**: Telemetría y leaderboard durante carreras activas
+- ✅ **MongoDB para persistencia**: Almacenamiento de datos históricos y configuración
+
+## 🚀 Instalación
+
+### Prerrequisitos
+
+- Node.js (v14 o superior)
+- MongoDB (v4.4 o superior)
+- Redis (v6 o superior)
+
+### Pasos
+
+1. **Clonar o descargar el proyecto**
+
+2. **Instalar dependencias**:
+```bash
+npm install
+```
+
+3. **Configurar variables de entorno**:
+   - El archivo `.env` ya está incluido con valores por defecto
+   - Ajusta `MONGO_URI` y `REDIS_URL` si es necesario
+
+4. **Iniciar MongoDB y Redis**:
+```bash
+# MongoDB (en una terminal)
+mongod
+
+# Redis (en otra terminal)
+redis-server
+```
+
+5. **Iniciar el servidor**:
+```bash
+# Modo desarrollo (con nodemon)
+npm run dev
+
+# Modo producción
+npm start
+```
+
+El servidor estará disponible en `http://localhost:4000`
+
+## 📖 Documentación Swagger
+
+La API incluye documentación interactiva con Swagger. Una vez que el servidor esté corriendo, puedes acceder a la documentación en:
+
+**http://localhost:4000/api-docs**
+
+Desde aquí podrás:
+- Ver todos los endpoints disponibles
+- Probar los endpoints directamente desde el navegador
+- Ver los esquemas de datos (schemas)
+- Ver ejemplos de requests y responses
+
+## 📦 Dependencias
+
+- **express**: Framework web para Node.js
+- **mongoose**: ODM para MongoDB
+- **ioredis**: Cliente Redis para Node.js
+- **dotenv**: Gestión de variables de entorno
+- **cors**: Middleware para habilitar CORS
+- **axios**: Cliente HTTP (opcional)
+- **swagger-ui-express**: Interfaz UI de Swagger
+- **swagger-jsdoc**: Generador de documentación Swagger desde comentarios JSDoc
+- **nodemon**: Herramienta de desarrollo (dev dependency)
+
+## 📚 Endpoints
+
+### Pilotos (Drivers)
+
+#### `POST /drivers`
+Crear un nuevo piloto
+
+**Body:**
+```json
+{
+  "name": "Max Verstappen",
+  "number": 33,
+  "nationality": "Dutch",
+  "teamId": "507f1f77bcf86cd799439011",
+  "points": 0,
+  "currentPosition": 0
+}
+```
+
+#### `GET /drivers`
+Obtener todos los pilotos (ordenados por puntos)
+
+#### `GET /drivers/:id`
+Obtener piloto por ID
+
+#### `PUT /drivers/:id`
+Actualizar piloto
+
+**Body:**
+```json
+{
+  "points": 410,
+  "teamId": "507f1f77bcf86cd799439011"
+}
+```
+
+#### `DELETE /drivers/:id`
+Eliminar piloto
+
+### Equipos (Teams)
+
+#### `POST /teams`
+Crear un nuevo equipo
+
+**Body:**
+```json
+{
+  "name": "Red Bull Racing",
+  "country": "Austria",
+  "points": 0
+}
+```
+
+#### `GET /teams`
+Obtener todos los equipos (ordenados por puntos)
+
+#### `GET /teams/:id`
+Obtener equipo por ID
+
+#### `PUT /teams/:id`
+Actualizar equipo
+
+#### `DELETE /teams/:id`
+Eliminar equipo
+
+### Carreras (Races)
+
+#### `POST /races`
+Registrar una nueva carrera
+
+**Body:**
+```json
+{
+  "name": "Gran Premio de Mónaco",
+  "circuit": "Circuit de Monaco",
+  "date": "2025-05-25T14:00:00Z",
+  "results": [
+    {
+      "driverId": "507f1f77bcf86cd799439011",
+      "position": 1,
+      "points": 25
+    },
+    {
+      "driverId": "507f1f77bcf86cd799439012",
+      "position": 2,
+      "points": 18
+    }
+  ]
+}
+```
+
+#### `GET /races`
+Obtener todas las carreras (ordenadas por fecha)
+
+#### `GET /races/:id`
+Obtener carrera por ID
+
+#### `PUT /races/:id`
+Actualizar carrera
+
+#### `DELETE /races/:id`
+Eliminar carrera
+
+### Standings
+
+#### `GET /standings/current`
+Obtener tabla de posiciones actual
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "data": {
+    "source": "mongodb",
+    "year": 2025,
+    "raceActive": false,
+    "standings": [
+      {
+        "driverName": "Max Verstappen",
+        "team": "Red Bull Racing",
+        "points": 410,
+        "position": 1
+      },
+      {
+        "driverName": "Lando Norris",
+        "team": "McLaren",
+        "points": 290,
+        "position": 2
+      }
+    ]
+  }
+}
+```
+
+#### `POST /standings/telemetry`
+Guardar telemetría de un piloto
+
+**Body:**
+```json
+{
+  "driverId": "507f1f77bcf86cd799439011",
+  "speed": 320,
+  "position": 1,
+  "lap": 35,
+  "fuel": 45.5
+}
+```
+
+#### `PUT /standings/leaderboard`
+Actualizar leaderboard en Redis (para carrera activa)
+
+**Body:**
+```json
+[
+  {
+    "driverId": "507f1f77bcf86cd799439011",
+    "driverName": "Max Verstappen",
+    "position": 1,
+    "currentLap": 42
+  },
+  {
+    "driverId": "507f1f77bcf86cd799439012",
+    "driverName": "Lando Norris",
+    "position": 2,
+    "currentLap": 42
+  }
+]
+```
+
+#### `GET /standings/telemetry/:driverId`
+Obtener telemetría de un piloto específico
+
+### Health Check
+
+#### `GET /health`
+Verificar estado del servidor
+
+## 🗄️ Estructura de Base de Datos
+
+### Modelo Driver (Piloto)
+```javascript
+{
+  name: String,
+  number: Number (único),
+  nationality: String,
+  teamName: String, // Redundante
+  teamId: ObjectId,
+  points: Number,
+  currentPosition: Number
+}
+```
+
+### Modelo Team (Escudería)
+```javascript
+{
+  name: String (único),
+  country: String,
+  points: Number,
+  drivers: [{
+    driverId: ObjectId,
+    driverName: String, // Redundante
+    driverPoints: Number // Redundante
+  }]
+}
+```
+
+### Modelo Race (Carrera)
+```javascript
+{
+  name: String,
+  circuit: String,
+  date: Date,
+  results: [{
+    driverId: ObjectId,
+    driverName: String, // Redundante
+    teamName: String, // Redundante
+    position: Number,
+    points: Number
+  }]
+}
+```
+
+### Modelo Season (Temporada)
+```javascript
+{
+  year: Number (único),
+  races: [{
+    raceId: ObjectId,
+    raceName: String, // Redundante
+    winnerName: String // Redundante
+  }],
+  standings: [{
+    driverId: ObjectId,
+    driverName: String, // Redundante
+    teamName: String, // Redundante
+    points: Number,
+    position: Number
+  }]
+}
+```
+
+## 🔄 Sincronización de Datos
+
+El sistema incluye funciones automáticas de sincronización que se ejecutan cuando se actualizan datos:
+
+- **`updateDriverInTeams()`**: Actualiza datos del piloto en su equipo
+- **`updateDriverInRaces()`**: Actualiza datos del piloto en todas las carreras
+- **`updateDriverInSeason()`**: Actualiza datos del piloto en todas las temporadas
+- **`updateTeamInDrivers()`**: Actualiza datos del equipo en todos sus pilotos
+- **`syncDriverData()`**: Sincroniza todos los datos redundantes de un piloto
+- **`syncTeamData()`**: Sincroniza todos los datos redundantes de un equipo
+
+Estas funciones se ejecutan automáticamente después de:
+- Actualizar puntos de un piloto
+- Cambiar el equipo de un piloto
+- Actualizar datos de un equipo
+
+## 📁 Estructura del Proyecto
+
+```
+src/
+├── config/
+│   ├── mongo.js          # Configuración MongoDB
+│   └── redis.js          # Configuración Redis
+├── models/
+│   ├── Driver.js         # Modelo de piloto
+│   ├── Team.js           # Modelo de equipo
+│   ├── Race.js           # Modelo de carrera
+│   └── Season.js         # Modelo de temporada
+├── controllers/
+│   ├── driverController.js
+│   ├── teamController.js
+│   ├── raceController.js
+│   └── standingsController.js
+├── services/
+│   ├── driverService.js
+│   ├── teamService.js
+│   ├── raceService.js
+│   └── standingsService.js
+├── routes/
+│   ├── driverRoutes.js
+│   ├── teamRoutes.js
+│   ├── raceRoutes.js
+│   └── standingsRoutes.js
+├── utils/
+│   └── updateHelpers.js  # Funciones de sincronización
+└── server.js             # Servidor principal
+```
+
+## 🧪 Ejemplos de Uso
+
+### 1. Crear un equipo y un piloto
+
+```bash
+# Crear equipo
+curl -X POST http://localhost:4000/teams \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Red Bull Racing",
+    "country": "Austria"
+  }'
+
+# Crear piloto (usar el _id del equipo creado)
+curl -X POST http://localhost:4000/drivers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Max Verstappen",
+    "number": 33,
+    "nationality": "Dutch",
+    "teamId": "ID_DEL_EQUIPO"
+  }'
+```
+
+### 2. Registrar una carrera
+
+```bash
+curl -X POST http://localhost:4000/races \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Gran Premio de Mónaco",
+    "circuit": "Circuit de Monaco",
+    "date": "2025-05-25T14:00:00Z",
+    "results": [
+      {
+        "driverId": "ID_DEL_PILOTO",
+        "position": 1,
+        "points": 25
+      }
+    ]
+  }'
+```
+
+### 3. Actualizar puntos de un piloto (sincronización automática)
+
+```bash
+curl -X PUT http://localhost:4000/drivers/ID_DEL_PILOTO \
+  -H "Content-Type: application/json" \
+  -d '{
+    "points": 410
+  }'
+```
+
+Esto actualizará automáticamente:
+- Puntos del piloto en su equipo
+- Puntos del equipo total
+- Datos del piloto en todas las carreras donde aparezca
+- Datos del piloto en todas las temporadas
+
+### 4. Obtener standings actuales
+
+```bash
+curl http://localhost:4000/standings/current
+```
+
+## 🔧 Configuración
+
+### Variables de Entorno (.env)
+
+```
+PORT=4000
+MONGO_URI=mongodb://localhost:27017/f1db
+REDIS_URL=redis://localhost:6379
+```
+
+## 📝 Notas
+
+- La desnormalización se usa intencionalmente para mejorar el rendimiento de lectura
+- Las funciones de sincronización mantienen la consistencia de datos redundantes
+- Redis se usa para datos en tiempo real (telemetría y leaderboard durante carreras)
+- MongoDB se usa para persistencia de datos históricos
+
+## 🔄 CI/CD
+
+El proyecto incluye workflows de GitHub Actions que se ejecutan automáticamente en cada push y pull request:
+
+- **CI**: Verifica que el proyecto compile correctamente, valida la sintaxis, verifica que todos los módulos se carguen y comprueba la estructura de archivos
+- **Lint**: Verifica la calidad básica del código
+
+Los workflows se ejecutan en Node.js 18.x y 20.x para asegurar compatibilidad.
+
+## 🐛 Troubleshooting
+
+### Error de conexión a MongoDB
+- Verifica que MongoDB esté corriendo: `mongod`
+- Verifica la URI en `.env`
+
+### Error de conexión a Redis
+- Verifica que Redis esté corriendo: `redis-server`
+- Verifica la URL en `.env`
+
+### Error de validación
+- Asegúrate de que todos los campos requeridos estén presentes
+- Verifica que los IDs referenciados existan
+
+## 📄 Licencia
+
+ISC
+
+## 👨‍💻 Autor
+
+Proyecto desarrollado para gestión de datos de Fórmula 1 con MongoDB y Redis.
+

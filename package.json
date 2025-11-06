@@ -1,0 +1,33 @@
+{
+  "name": "f1-pro",
+  "version": "1.0.0",
+  "description": "API REST para gestión de datos de Fórmula 1 con MongoDB (desnormalizado) y Redis",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "keywords": [
+    "f1",
+    "formula1",
+    "mongodb",
+    "redis",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "mongoose": "^8.0.3",
+    "ioredis": "^5.3.2",
+    "dotenv": "^16.3.1",
+    "cors": "^2.8.5",
+    "axios": "^1.6.2",
+    "swagger-ui-express": "^5.0.0",
+    "swagger-jsdoc": "^6.2.8"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
+
