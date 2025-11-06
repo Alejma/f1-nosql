@@ -36,6 +36,14 @@ jobs:
             npm install
           fi
 
+      - name: Configurar variables de entorno desde Secrets
+        run: |
+          # Usar secrets si están configurados, sino usar valores por defecto locales
+          echo "MONGO_URI=${{ secrets.MONGO_URI || 'mongodb://localhost:27017/test' }}" >> $GITHUB_ENV
+          echo "REDIS_URL=${{ secrets.REDIS_URL || 'redis://localhost:6379' }}" >> $GITHUB_ENV
+          echo "PORT=${{ secrets.PORT || '4000' }}" >> $GITHUB_ENV
+          echo "✅ Variables de entorno configuradas"
+
       - name: Verificar formato básico (opcional)
         run: |
           echo "Verificando formato básico del código..."
