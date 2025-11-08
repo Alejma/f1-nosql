@@ -133,16 +133,22 @@ const updateTeamInDrivers = async (teamId) => {
       throw new Error(`Equipo con ID ${teamId} no encontrado`);
     }
 
+    // Actualizar información desnormalizada del equipo en todos los pilotos
     await Driver.updateMany(
       { teamId: teamId },
       {
         $set: {
-          teamName: team.name
+          teamName: team.name,
+          team: {
+            name: team.name,
+            country: team.country,
+            points: team.points
+          }
         }
       }
     );
 
-    console.log(`✅ Actualizado equipo ${team.name} en pilotos`);
+    console.log(`✅ Actualizado equipo ${team.name} en pilotos (con información desnormalizada)`);
   } catch (error) {
     console.error(`❌ Error actualizando equipo en pilotos:`, error);
     throw error;

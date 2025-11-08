@@ -26,6 +26,21 @@ const driverSchema = new mongoose.Schema({
     ref: 'Team',
     required: true
   },
+  team: {
+    // Información desnormalizada del equipo
+    name: {
+      type: String,
+      trim: true
+    },
+    country: {
+      type: String,
+      trim: true
+    },
+    points: {
+      type: Number,
+      default: 0
+    }
+  },
   points: {
     type: Number,
     default: 0,

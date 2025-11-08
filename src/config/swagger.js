@@ -53,6 +53,24 @@ const options = {
               description: 'ID del equipo',
               example: '507f1f77bcf86cd799439012',
             },
+            team: {
+              type: 'object',
+              description: 'Información desnormalizada del equipo',
+              properties: {
+                name: {
+                  type: 'string',
+                  example: 'Red Bull Racing',
+                },
+                country: {
+                  type: 'string',
+                  example: 'Austria',
+                },
+                points: {
+                  type: 'number',
+                  example: 720,
+                },
+              },
+            },
             points: {
               type: 'number',
               description: 'Puntos totales del piloto',
