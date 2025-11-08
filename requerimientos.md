@@ -793,6 +793,7 @@ El sistema debe gestionar:
 ## 11. ESTRUCTURA DE DATOS
 
 ### Driver
+```
 {
   _id: ObjectId,
   name: String,
@@ -809,7 +810,10 @@ El sistema debe gestionar:
   currentPosition: Number,
   createdAt: Date,
   updatedAt: Date
-}### Teamipt
+}
+```
+### Teamipt
+```
 {
   _id: ObjectId,
   name: String (único),
@@ -822,7 +826,11 @@ El sistema debe gestionar:
   }],
   createdAt: Date,
   updatedAt: Date
-}### Race
+}
+```
+
+### Race
+```
 {
   _id: ObjectId,
   name: String,
@@ -837,7 +845,10 @@ El sistema debe gestionar:
   }],
   createdAt: Date,
   updatedAt: Date
-}### Season
+}
+```
+### Season
+```
 {
   _id: ObjectId,
   year: Number (único),
@@ -855,7 +866,8 @@ El sistema debe gestionar:
   }],
   createdAt: Date,
   updatedAt: Date
-}---
+}
+```
 
 **Versión del Documento**: 1.0  
 **Fecha**: 2025  
