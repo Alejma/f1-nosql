@@ -2,25 +2,58 @@
 
 [![CI - Verificación del Proyecto](https://github.com/USERNAME/f1-pro/actions/workflows/ci.yml/badge.svg)](https://github.com/USERNAME/f1-pro/actions/workflows/ci.yml)
 
-API REST para gestión de datos de Fórmula 1 usando MongoDB (base de datos desnormalizada) y Redis para telemetría y rankings en tiempo real.
+API REST para la gestión de datos de **Fórmula 1**, implementada con **MongoDB** (base de datos desnormalizada) y **Redis** como sistema de **caché** para optimizar el rendimiento en consultas frecuentes.
+
+---
 
 ## 📋 Descripción
 
-Este proyecto implementa una API REST completa para gestionar información de Fórmula 1, incluyendo:
+**F1 Pro API** ofrece una arquitectura eficiente y escalable para gestionar información sobre la Fórmula 1.  
+El sistema combina una base de datos **MongoDB** para la persistencia de datos con **Redis** para cachear resultados de consultas costosas o repetitivas, mejorando la velocidad de respuesta y reduciendo la carga sobre la base de datos.
 
-- **Pilotos** (Drivers): información de cada piloto con sus puntos y posición actual
-- **Escuderías** (Teams): equipos con sus pilotos y puntos totales
-- **Carreras** (Races): registro de carreras con resultados detallados
-- **Temporadas** (Seasons): standings y carreras por año
-- **Telemetría en tiempo real**: datos de velocidad, posición, vueltas usando Redis
-- **Leaderboard**: rankings en tiempo real durante carreras activas
+### Entidades principales
 
-### Características principales
+- **Pilotos (Drivers):** información de cada piloto, incluyendo puntos, escudería y posición actual.  
+- **Escuderías (Teams):** equipos con sus pilotos asociados y puntos totales.  
+- **Carreras (Races):** registro de resultados y estadísticas por carrera.  
+- **Temporadas (Seasons):** gestión de carreras, posiciones y campeonatos por año.  
 
-- ✅ **Desnormalización intencional**: Los datos se almacenan con redundancia para mejorar el rendimiento de lectura
-- ✅ **Sincronización automática**: Funciones que mantienen la consistencia de datos redundantes
-- ✅ **Redis para tiempo real**: Telemetría y leaderboard durante carreras activas
-- ✅ **MongoDB para persistencia**: Almacenamiento de datos históricos y configuración
+---
+
+## ⚙️ Características principales
+
+- ✅ **Desnormalización intencional:** los datos se almacenan con cierta redundancia para mejorar el rendimiento de lectura.  
+- ✅ **MongoDB para persistencia:** almacena la información histórica y estructural del campeonato.  
+- ✅ **Redis como caché inteligente:**  
+  - Cacheo de resultados de consultas frecuentes como:
+    - Puntos por piloto  
+    - Puntos por escudería  
+    - Clasificación general de pilotos o equipos  
+  - Expiración configurable (TTL) para mantener datos actualizados.  
+- ✅ **Sincronización automática:** mecanismos que invalidan la caché al actualizar datos en MongoDB.  
+- ✅ **API RESTful completa:** endpoints organizados para CRUD y consultas especializadas.  
+
+---
+
+## 🧩 Arquitectura general
+
+                      ┌────────────────────────────┐
+                      │         Cliente/API        │
+                      └─────────────┬──────────────┘
+                                    │
+                          ┌─────────▼─────────┐
+                          │    F1 Pro API     │
+                          │   (Spring Boot)   │
+                          └─────────┬─────────┘
+                                    │
+           ┌────────────────────────┴────────────────────────┐
+           │                                                 │
+    ┌──────▼──────┐                                   ┌──────▼──────┐
+    │   MongoDB   │ ← Persistencia                    │    Redis    │ ← Caché de consultas
+    │ (Datos F1)  │                                   │ (Cache Layer)│
+    └─────────────┘                                   └──────────────┘
+
+
 
 ## 🚀 Instalación
 
