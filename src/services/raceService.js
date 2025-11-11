@@ -1,6 +1,7 @@
 const Race = require('../models/Race');
 const Season = require('../models/Season');
 const Driver = require('../models/Driver');
+const Team = require('../models/Team');
 
 const raceService = {
   /**
@@ -86,6 +87,54 @@ const raceService = {
       });
 
       await season.save();
+
+      // === NUEVO: ACTUALIZAR PUNTOS EN TEAMS ===
+      // Para minimizar llamadas, usamos bulkWrite:
+      const teamOps = [];
+
+       for (const result of race.results) {
+        // Necesitamos el piloto y su teamId actual
+        const driver = await Driver.findById(result.driverId).lean();
+        if (!driver || !driver.teamId) continue;
+
+        const teamId = driver.teamId;
+
+        // 1) Asegurar que el piloto exista en el array drivers del team (si no, lo añadimos con 0)
+        teamOps.push({
+          updateOne: {
+            filter: { _id: teamId },
+            update: {
+              $addToSet: {
+                drivers: {
+                  driverId: driver._id,
+                  driverName: driver.name,
+                  driverPoints: 0
+                }
+              }
+            }
+          }
+        });
+
+        // 2) Incrementar puntos del team y del piloto dentro del team
+        teamOps.push({
+          updateOne: {
+            filter: { _id: teamId, "drivers.driverId": driver._id },
+            update: {
+              $inc: {
+                points: result.points,
+                "drivers.$.driverPoints": result.points
+              },
+              $set: {
+                "drivers.$.driverName": driver.name // mantener nombre fresco
+              }
+            }
+          }
+        });
+      }
+
+      if (teamOps.length > 0) {
+        await Team.bulkWrite(teamOps, { ordered: false });
+      }
 
       return race;
     } catch (error) {
