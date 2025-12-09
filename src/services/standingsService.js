@@ -11,8 +11,17 @@ const standingsService = {
       const currentYear = new Date().getFullYear();
       
       // Intentar obtener leaderboard de Redis (carrera activa)
-      const redisLeaderboard = await redisClient.get('leaderboard:current');
-      
+      let redisLeaderboard = null;
+      try {
+        if (redisClient && typeof redisClient.get === 'function') {
+          redisLeaderboard = await redisClient.get('leaderboard:current');
+        }
+      } catch (redisErr) {
+        // No hacemos fallar todo el endpoint por un error de Redis; lo registramos y continuamos con fallback
+        console.warn('⚠️ Redis read error (leaderboard):', redisErr.message || redisErr);
+        redisLeaderboard = null;
+      }
+
       if (redisLeaderboard) {
         try {
           const leaderboard = JSON.parse(redisLeaderboard);
@@ -68,11 +77,28 @@ const standingsService = {
       // Si no hay carrera activa, obtener de MongoDB
       const season = await Season.findOne({ year: currentYear });
       
+      // If season is missing or has no standings, try to compute standings from Drivers
+      const buildFromDrivers = async (yearFor) => {
+        const drivers = await Driver.find().sort({ points: -1 });
+        const standings = drivers.map((d, idx) => ({
+          driverName: d.name,
+          team: d.teamName || d.team?.name || 'Unknown',
+          points: d.points || 0,
+          position: idx + 1
+        }));
+        return {
+          source: 'computed',
+          year: yearFor,
+          raceActive: false,
+          standings: standings.slice(0, 10)
+        };
+      };
+
       if (!season || !season.standings || season.standings.length === 0) {
         // Si no hay temporada actual, buscar la más reciente
         const latestSeason = await Season.findOne().sort({ year: -1 });
-        
-        if (latestSeason && latestSeason.standings) {
+
+        if (latestSeason && latestSeason.standings && latestSeason.standings.length > 0) {
           return {
             source: 'mongodb',
             year: latestSeason.year,
@@ -87,16 +113,12 @@ const standingsService = {
               }))
           };
         }
-        
-        return {
-          source: 'mongodb',
-          year: currentYear,
-          raceActive: false,
-          standings: [],
-          message: 'No hay datos de standings disponibles'
-        };
+
+        // Fallback: calcular standings a partir de la colección de Drivers
+        return await buildFromDrivers(currentYear);
       }
 
+      // Si season existe y tiene standings, devolverlos normalmente
       return {
         source: 'mongodb',
         year: season.year,

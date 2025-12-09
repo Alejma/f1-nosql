@@ -128,11 +128,44 @@ const driverService = {
         position: r.results?.[0]?.position ?? null,
         points: r.results?.[0]?.points ?? 0
       }));
+
+      // === Calcular estadísticas (wins, podiums, poles, dnfs) ===
+      const allRaces = await Race.find(
+        { "results.driverId": driver._id }
+      ).lean();
+
+      let wins = 0;
+      let podiums = 0;
+      let polePositions = 0;
+      let dnfs = 0;
+
+      for (const race of allRaces) {
+        const raceResult = race.results?.find(r => r.driverId.toString() === driver._id.toString());
+        if (raceResult) {
+          // Victories: position 1
+          if (raceResult.position === 1) {
+            wins++;
+            polePositions++; // Aproximación: asumimos que el ganador tuvo pole
+          }
+          // Podiums: positions 1, 2, 3
+          if (raceResult.position <= 3) {
+            podiums++;
+          }
+          // DNF: position > número total de resultados en esa carrera (no terminó)
+          if (raceResult.position > race.results.length) {
+            dnfs++;
+          }
+        }
+      }
       
       return {
-      ...driver.toObject(),
-      last5Positions
-     };
+        ...driver.toObject(),
+        last5Positions,
+        wins,
+        podiums,
+        polePositions,
+        dnfs
+      };
 
     } catch (error) {
       throw error;
