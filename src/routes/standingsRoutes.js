@@ -29,48 +29,6 @@ router.get('/current', standingsController.getCurrentStandings);
 
 /**
  * @swagger
- * /standings/telemetry:
- *   post:
- *     summary: Guardar telemetría de un piloto
- *     tags: [Standings]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/Telemetry'
- *           example:
- *             driverId: "507f1f77bcf86cd799439011"
- *             speed: 320
- *             position: 1
- *             lap: 35
- *             fuel: 45.5
- *     responses:
- *       201:
- *         description: Telemetría guardada exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *                   properties:
- *                     message:
- *                       type: string
- *       400:
- *         description: Error en la validación
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
-router.post('/telemetry', standingsController.saveTelemetry);
-
-/**
- * @swagger
  * /standings/leaderboard:
  *   put:
  *     summary: Actualizar leaderboard en Redis (carrera activa)
@@ -114,40 +72,6 @@ router.post('/telemetry', standingsController.saveTelemetry);
  *               $ref: '#/components/schemas/Error'
  */
 router.put('/leaderboard', standingsController.updateLeaderboard);
-
-/**
- * @swagger
- * /standings/telemetry/{driverId}:
- *   get:
- *     summary: Obtener telemetría de un piloto específico
- *     tags: [Standings]
- *     parameters:
- *       - in: path
- *         name: driverId
- *         required: true
- *         schema:
- *           type: string
- *         description: ID del piloto
- *     responses:
- *       200:
- *         description: Datos de telemetría del piloto
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   $ref: '#/components/schemas/Telemetry'
- *       404:
- *         description: Telemetría no encontrada
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
-router.get('/telemetry/:driverId', standingsController.getTelemetry);
 
 module.exports = router;
 

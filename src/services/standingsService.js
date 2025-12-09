@@ -1,6 +1,7 @@
 const Season = require('../models/Season');
 const Driver = require('../models/Driver');
 const redisClient = require('../config/redis');
+const { cacheAsideItem, deleteCachePattern } = require('../utils/cache');
 
 const standingsService = {
   /**
@@ -11,8 +12,17 @@ const standingsService = {
       const currentYear = new Date().getFullYear();
       
       // Intentar obtener leaderboard de Redis (carrera activa)
-      const redisLeaderboard = await redisClient.get('leaderboard:current');
-      
+      let redisLeaderboard = null;
+      try {
+        if (redisClient && typeof redisClient.get === 'function') {
+          redisLeaderboard = await redisClient.get('leaderboard:current');
+        }
+      } catch (redisErr) {
+        // No hacemos fallar todo el endpoint por un error de Redis; lo registramos y continuamos con fallback
+        console.warn('⚠️ Redis read error (leaderboard):', redisErr.message || redisErr);
+        redisLeaderboard = null;
+      }
+
       if (redisLeaderboard) {
         try {
           const leaderboard = JSON.parse(redisLeaderboard);
@@ -65,64 +75,70 @@ const standingsService = {
         }
       }
 
-      // Si no hay carrera activa, obtener de MongoDB
-      const season = await Season.findOne({ year: currentYear });
+      // Si no hay carrera activa, obtener de MongoDB con caché
+      const cacheKey = `standings:${currentYear}`;
       
-      if (!season || !season.standings || season.standings.length === 0) {
-        // Si no hay temporada actual, buscar la más reciente
-        const latestSeason = await Season.findOne().sort({ year: -1 });
+      const result = await cacheAsideItem(cacheKey, async () => {
+        const season = await Season.findOne({ year: currentYear });
         
-        if (latestSeason && latestSeason.standings) {
+        // If season is missing or has no standings, try to compute standings from Drivers
+        const buildFromDrivers = async (yearFor) => {
+          const drivers = await Driver.find().sort({ points: -1 });
+          const standings = drivers.map((d, idx) => ({
+            driverName: d.name,
+            team: d.teamName || d.team?.name || 'Unknown',
+            points: d.points || 0,
+            position: idx + 1
+          }));
           return {
-            source: 'mongodb',
-            year: latestSeason.year,
+            source: 'computed',
+            year: yearFor,
             raceActive: false,
-            standings: latestSeason.standings
-              .slice(0, 10)
-              .map(s => ({
-                driverName: s.driverName,
-                team: s.teamName,
-                points: s.points,
-                position: s.position
-              }))
+            standings: standings.slice(0, 10)
           };
+        };
+
+        if (!season || !season.standings || season.standings.length === 0) {
+          // Si no hay temporada actual, buscar la más reciente
+          const latestSeason = await Season.findOne().sort({ year: -1 });
+
+          if (latestSeason && latestSeason.standings && latestSeason.standings.length > 0) {
+            return {
+              source: 'mongodb',
+              year: latestSeason.year,
+              raceActive: false,
+              standings: latestSeason.standings
+                .slice(0, 10)
+                .map(s => ({
+                  driverName: s.driverName,
+                  team: s.teamName,
+                  points: s.points,
+                  position: s.position
+                }))
+            };
+          }
+
+          // Fallback: calcular standings a partir de la colección de Drivers
+          return await buildFromDrivers(currentYear);
         }
-        
+
+        // Si season existe y tiene standings, devolverlos normalmente
         return {
           source: 'mongodb',
-          year: currentYear,
+          year: season.year,
           raceActive: false,
-          standings: [],
-          message: 'No hay datos de standings disponibles'
+          standings: season.standings
+            .slice(0, 10)
+            .map(s => ({
+              driverName: s.driverName,
+              team: s.teamName,
+              points: s.points,
+              position: s.position
+            }))
         };
-      }
-
-      return {
-        source: 'mongodb',
-        year: season.year,
-        raceActive: false,
-        standings: season.standings
-          .slice(0, 10)
-          .map(s => ({
-            driverName: s.driverName,
-            team: s.teamName,
-            points: s.points,
-            position: s.position
-          }))
-      };
-    } catch (error) {
-      throw error;
-    }
-  },
-
-  /**
-   * Guardar telemetría en Redis
-   */
-  saveTelemetry: async (telemetryData) => {
-    try {
-      const key = `telemetry:${telemetryData.driverId}`;
-      await redisClient.setex(key, 3600, JSON.stringify(telemetryData)); // Expira en 1 hora
-      return { message: 'Telemetría guardada correctamente' };
+      });
+      
+      return result.data;
     } catch (error) {
       throw error;
     }
@@ -137,21 +153,6 @@ const standingsService = {
       const sorted = leaderboardData.sort((a, b) => a.position - b.position);
       await redisClient.set('leaderboard:current', JSON.stringify(sorted));
       return { message: 'Leaderboard actualizado en Redis' };
-    } catch (error) {
-      throw error;
-    }
-  },
-
-  /**
-   * Obtener telemetría de un piloto
-   */
-  getTelemetry: async (driverId) => {
-    try {
-      const telemetry = await redisClient.get(`telemetry:${driverId}`);
-      if (!telemetry) {
-        return null;
-      }
-      return JSON.parse(telemetry);
     } catch (error) {
       throw error;
     }

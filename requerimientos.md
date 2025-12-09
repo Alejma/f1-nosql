@@ -695,9 +695,7 @@ El sistema debe gestionar:
 
 ### Standings
 - `GET /standings/current` - Obtener standings actuales
-- `POST /standings/telemetry` - Guardar telemetría
 - `PUT /standings/leaderboard` - Actualizar leaderboard
-- `GET /standings/telemetry/:driverId` - Obtener telemetría de un piloto
 
 ### Health
 - `GET /health` - Verificar estado del servidor

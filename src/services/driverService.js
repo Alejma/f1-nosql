@@ -2,6 +2,7 @@ const Driver = require('../models/Driver');
 const Team = require('../models/Team');
 const Race = require('../models/Race');
 const { syncDriverData } = require('../utils/updateHelpers');
+const { cacheAsideList, cacheAsideItem, deleteCache, deleteCachePattern } = require('../utils/cache');
 
 const driverService = {
   /**
@@ -38,6 +39,11 @@ const driverService = {
       team.points = team.drivers.reduce((sum, d) => sum + d.driverPoints, 0);
       await team.save();
 
+      // Invalidar caché según RF-REDIS-03
+      await deleteCachePattern('drivers:all');
+      await deleteCachePattern('standings:*');
+      await deleteCache(`team:${team._id}`);
+
       return driver;
     } catch (error) {
       throw error;
@@ -45,95 +51,136 @@ const driverService = {
   },
 
   /**
-   * Obtener todos los pilotos
+   * Obtener todos los pilotos (con caché)
    */
   getAllDrivers: async () => {
     try {
-      const drivers = await Driver.find().sort({ points: -1 });
-      
-      // Obtener todos los equipos únicos de una vez para optimizar
-      const teamIds = [...new Set(drivers.map(d => d.teamId.toString()))];
-      const teams = await Team.find({ _id: { $in: teamIds } });
-      const teamMap = new Map(teams.map(t => [t._id.toString(), t]));
-      
-      // Actualizar información del equipo desnormalizada si está desactualizada
-      const updates = [];
-      for (const driver of drivers) {
-        const team = teamMap.get(driver.teamId.toString());
-        if (team && (!driver.team || !driver.team.name || driver.team.name !== team.name)) {
-          driver.team = {
-            name: team.name,
-            country: team.country,
-            points: team.points
-          };
-          driver.teamName = team.name;
-          updates.push(driver.save());
+      const result = await cacheAsideList('drivers:all', async () => {
+        const drivers = await Driver.find().sort({ points: -1 });
+        
+        // Obtener todos los equipos únicos de una vez para optimizar
+        const teamIds = [...new Set(drivers.map(d => d.teamId.toString()))];
+        const teams = await Team.find({ _id: { $in: teamIds } });
+        const teamMap = new Map(teams.map(t => [t._id.toString(), t]));
+        
+        // Actualizar información del equipo desnormalizada si está desactualizada
+        const updates = [];
+        for (const driver of drivers) {
+          const team = teamMap.get(driver.teamId.toString());
+          if (team && (!driver.team || !driver.team.name || driver.team.name !== team.name)) {
+            driver.team = {
+              name: team.name,
+              country: team.country,
+              points: team.points
+            };
+            driver.teamName = team.name;
+            updates.push(driver.save());
+          }
         }
-      }
+        
+        // Ejecutar todas las actualizaciones en paralelo si hay alguna
+        if (updates.length > 0) {
+          await Promise.all(updates);
+        }
+        
+        // Convertir a objetos planos para cachear
+        return drivers.map(d => d.toObject());
+      });
       
-      // Ejecutar todas las actualizaciones en paralelo si hay alguna
-      if (updates.length > 0) {
-        await Promise.all(updates);
-      }
-      
-      return drivers;
+      return result.data;
     } catch (error) {
       throw error;
     }
   },
 
   /**
-   * Obtener piloto por ID
+   * Obtener piloto por ID (con caché)
    */
   getDriverById: async (driverId) => {
     try {
-      const driver = await Driver.findById(driverId);
-      if (!driver) {
-        throw new Error('Piloto no encontrado');
-      }
-      
-      // Actualizar información del equipo desnormalizada si está desactualizada
-      if (!driver.team || !driver.team.name || driver.team.name !== driver.teamName) {
-        const team = await Team.findById(driver.teamId);
-        if (team) {
-          driver.team = {
-            name: team.name,
-            country: team.country,
-            points: team.points
-          };
-          driver.teamName = team.name;
-          await driver.save();
+      const result = await cacheAsideItem(`driver:${driverId}`, async () => {
+        const driver = await Driver.findById(driverId);
+        if (!driver) {
+          throw new Error('Piloto no encontrado');
         }
-      }
-
-       // === NUEVO: últimas 5 posiciones del piloto ===
-      const lastRaces = await Race.find(
-        { "results.driverId": driver._id },
-        {
-          name: 1,
-          date: 1,
-          circuit: 1, // si existe en tu schema
-          results: { $elemMatch: { driverId: driver._id } }
+        
+        // Actualizar información del equipo desnormalizada si está desactualizada
+        if (!driver.team || !driver.team.name || driver.team.name !== driver.teamName) {
+          const team = await Team.findById(driver.teamId);
+          if (team) {
+            driver.team = {
+              name: team.name,
+              country: team.country,
+              points: team.points
+            };
+            driver.teamName = team.name;
+            await driver.save();
+          }
         }
-      ) 
-        .sort({ date: -1 })
-        .limit(5)
-        .lean();
 
-      const last5Positions = lastRaces.map(r => ({
-        raceId: r._id,
-        raceName: r.name,
-        date: r.date,
-        circuit: r.circuit,
-        position: r.results?.[0]?.position ?? null,
-        points: r.results?.[0]?.points ?? 0
-      }));
+        // === NUEVO: últimas 5 posiciones del piloto ===
+        const lastRaces = await Race.find(
+          { "results.driverId": driver._id },
+          {
+            name: 1,
+            date: 1,
+            circuit: 1,
+            results: { $elemMatch: { driverId: driver._id } }
+          }
+        ) 
+          .sort({ date: -1 })
+          .limit(5)
+          .lean();
+
+        const last5Positions = lastRaces.map(r => ({
+          raceId: r._id,
+          raceName: r.name,
+          date: r.date,
+          circuit: r.circuit,
+          position: r.results?.[0]?.position ?? null,
+          points: r.results?.[0]?.points ?? 0
+        }));
+
+        // === Calcular estadísticas (wins, podiums, poles, dnfs) ===
+        const allRaces = await Race.find(
+          { "results.driverId": driver._id }
+        ).lean();
+
+        let wins = 0;
+        let podiums = 0;
+        let polePositions = 0;
+        let dnfs = 0;
+
+        for (const race of allRaces) {
+          const raceResult = race.results?.find(r => r.driverId.toString() === driver._id.toString());
+          if (raceResult) {
+            // Victories: position 1
+            if (raceResult.position === 1) {
+              wins++;
+              polePositions++; // Aproximación: asumimos que el ganador tuvo pole
+            }
+            // Podiums: positions 1, 2, 3
+            if (raceResult.position <= 3) {
+              podiums++;
+            }
+            // DNF: position > número total de resultados en esa carrera (no terminó)
+            if (raceResult.position > race.results.length) {
+              dnfs++;
+            }
+          }
+        }
+        
+        return {
+          ...driver.toObject(),
+          last5Positions,
+          wins,
+          podiums,
+          polePositions,
+          dnfs
+        };
+      });
       
-      return {
-      ...driver.toObject(),
-      last5Positions
-     };
-
+      return result.data;
     } catch (error) {
       throw error;
     }
@@ -222,6 +269,15 @@ const driverService = {
       // Sincronizar datos redundantes
       await syncDriverData(driverId);
 
+      // Invalidar caché según RF-REDIS-03
+      await deleteCache(`driver:${driverId}`);
+      await deleteCachePattern('drivers:all');
+      await deleteCachePattern('standings:*');
+      if (driver.teamId) {
+        await deleteCache(`team:${driver.teamId}`);
+        await deleteCachePattern('teams:all');
+      }
+
       return driver;
     } catch (error) {
       throw error;
@@ -249,6 +305,16 @@ const driverService = {
       }
 
       await Driver.findByIdAndDelete(driverId);
+      
+      // Invalidar caché según RF-REDIS-03
+      await deleteCache(`driver:${driverId}`);
+      await deleteCachePattern('drivers:all');
+      await deleteCachePattern('standings:*');
+      if (driver.teamId) {
+        await deleteCache(`team:${driver.teamId}`);
+        await deleteCachePattern('teams:all');
+      }
+      
       return { message: 'Piloto eliminado correctamente' };
     } catch (error) {
       throw error;
