@@ -101,33 +101,31 @@ const raceService = {
         const teamId = driver.teamId.toString();
         teamIdsTouched.add(teamId);
 
-        // 1) Asegurar que el piloto exista en el array drivers del team (si no, lo añadimos con 0)
-        teamOps.push({
-          updateOne: {
-            filter: { _id: teamId },
-            update: {
-              $addToSet: {
-                drivers: {
-                  driverId: driver._id,
-                  driverName: driver.name,
-                  driverPoints: 0
-                }
-              }
-            }
-          }
-        });
-
-        // 2) Incrementar puntos del team y del piloto dentro del team
+         // A) Si el driver YA está en el team: incrementa sus puntos
         teamOps.push({
           updateOne: {
             filter: { _id: teamId, "drivers.driverId": driver._id },
             update: {
-              $inc: {
-                points: result.points,
-                "drivers.$.driverPoints": result.points
-              },
-              $set: {
-                "drivers.$.driverName": driver.name // mantener nombre fresco
+              
+              $set: { "drivers.$.driverName": driver.name }
+            }
+          }
+        });
+
+         // B) Si el driver NO está en el team: agrégalo con sus puntos de esta carrera
+        teamOps.push({
+          updateOne: {
+            filter: {
+              _id: teamId,
+              drivers: { $not: { $elemMatch: { driverId: driver._id } } }
+            },
+            update: {
+              $push: {
+                drivers: {
+                  driverId: driver._id,
+                  driverName: driver.name,
+                  driverPoints: result.points
+                }
               }
             }
           }
@@ -159,7 +157,7 @@ const raceService = {
           ]
         )
       )
-    );
+      );
 
       return race;
     } catch (error) {

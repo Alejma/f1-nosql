@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const teamController = require('../controllers/teamController');
 const { rebuildTeamPointsFromRaces  } = require('../utils/rebuildTeamPointsFromRaces');
+const { dedupeTeamDrivers } = require('../utils/dedupeTeamDrivers');
 
 /**
  * @swagger
@@ -210,6 +211,24 @@ router.put('/:id', teamController.updateTeam);
  */
 router.delete('/:id', teamController.deleteTeam);
 
+/**
+ * @swagger
+ * /teams/admin/dedupe-drivers:
+ *   get:
+ *     summary: Elimina duplicados del array drivers en equipos y recalcula puntos
+ *     tags: [Teams]
+ *     responses:
+ *       200:
+ *         description: Dedupe realizado
+ */
+router.get('/admin/dedupe-drivers', async (req, res) => {
+  try {
+    const result = await dedupeTeamDrivers();
+    res.json({ success: true, message: 'Dedupe de drivers completado', ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 
 module.exports = router;
