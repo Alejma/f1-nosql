@@ -1,5 +1,6 @@
 const Team = require('../models/Team');
 const { syncTeamData } = require('../utils/updateHelpers');
+const { cacheAsideList, cacheAsideItem, deleteCache, deleteCachePattern } = require('../utils/cache');
 
 const teamService = {
 
@@ -25,6 +26,12 @@ const teamService = {
     try {
       const team = new Team(teamData);
       await team.save();
+      
+      // Invalidar caché según RF-REDIS-03
+      await deleteCachePattern('teams:all');
+      await deleteCachePattern('drivers:all');
+      await deleteCachePattern('standings:*');
+      
       return team;
     } catch (error) {
       throw error;
@@ -32,26 +39,35 @@ const teamService = {
   },
 
   /**
-   * Obtener todos los equipos
+   * Obtener todos los equipos (con caché)
    */
   getAllTeams: async () => {
     try {
-      return await Team.find().sort({ points: -1 });
+      const result = await cacheAsideList('teams:all', async () => {
+        const teams = await Team.find().sort({ points: -1 });
+        return teams.map(t => t.toObject());
+      });
+      
+      return result.data;
     } catch (error) {
       throw error;
     }
   },
 
   /**
-   * Obtener equipo por ID
+   * Obtener equipo por ID (con caché)
    */
   getTeamById: async (teamId) => {
     try {
-      const team = await Team.findById(teamId);
-      if (!team) {
-        throw new Error('Equipo no encontrado');
-      }
-      return team;
+      const result = await cacheAsideItem(`team:${teamId}`, async () => {
+        const team = await Team.findById(teamId);
+        if (!team) {
+          throw new Error('Equipo no encontrado');
+        }
+        return team.toObject();
+      });
+      
+      return result.data;
     } catch (error) {
       throw error;
     }
@@ -73,6 +89,12 @@ const teamService = {
       // Sincronizar datos redundantes
       await syncTeamData(teamId);
 
+      // Invalidar caché según RF-REDIS-03
+      await deleteCache(`team:${teamId}`);
+      await deleteCachePattern('teams:all');
+      await deleteCachePattern('drivers:all');
+      await deleteCachePattern('standings:*');
+
       return team;
     } catch (error) {
       throw error;
@@ -90,6 +112,13 @@ const teamService = {
       }
 
       await Team.findByIdAndDelete(teamId);
+      
+      // Invalidar caché según RF-REDIS-03
+      await deleteCache(`team:${teamId}`);
+      await deleteCachePattern('teams:all');
+      await deleteCachePattern('drivers:all');
+      await deleteCachePattern('standings:*');
+      
       return { message: 'Equipo eliminado correctamente' };
     } catch (error) {
       throw error;

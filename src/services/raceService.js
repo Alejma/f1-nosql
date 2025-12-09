@@ -2,6 +2,7 @@ const Race = require('../models/Race');
 const Season = require('../models/Season');
 const Driver = require('../models/Driver');
 const Team = require('../models/Team');
+const { cacheAsideList, cacheAsideItem, deleteCache, deleteCachePattern } = require('../utils/cache');
 
 const raceService = {
   /**
@@ -88,6 +89,14 @@ const raceService = {
 
       await season.save();
 
+      // Invalidar caché según RF-REDIS-03
+      await deleteCache(`race:${race._id}`);
+      await deleteCachePattern(`races:list:${raceYear}`);
+      await deleteCachePattern(`races:list:*`);
+      await deleteCachePattern('standings:*');
+      await deleteCachePattern('drivers:all');
+      await deleteCachePattern('teams:all');
+
       // === NUEVO: ACTUALIZAR PUNTOS EN TEAMS ===
       // Para minimizar llamadas, usamos bulkWrite:
       const teamOps = [];
@@ -168,26 +177,38 @@ const raceService = {
   },
 
   /**
-   * Obtener todas las carreras
+   * Obtener todas las carreras (con caché)
    */
   getAllRaces: async () => {
     try {
-      return await Race.find().sort({ date: -1 });
+      // Obtener año actual para cachear por año
+      const currentYear = new Date().getFullYear();
+      
+      const result = await cacheAsideList(`races:list:${currentYear}`, async () => {
+        const races = await Race.find().sort({ date: -1 });
+        return races.map(r => r.toObject());
+      });
+      
+      return result.data;
     } catch (error) {
       throw error;
     }
   },
 
   /**
-   * Obtener carrera por ID
+   * Obtener carrera por ID (con caché)
    */
   getRaceById: async (raceId) => {
     try {
-      const race = await Race.findById(raceId);
-      if (!race) {
-        throw new Error('Carrera no encontrada');
-      }
-      return race;
+      const result = await cacheAsideItem(`race:${raceId}`, async () => {
+        const race = await Race.findById(raceId);
+        if (!race) {
+          throw new Error('Carrera no encontrada');
+        }
+        return race.toObject();
+      });
+      
+      return result.data;
     } catch (error) {
       throw error;
     }
@@ -218,6 +239,13 @@ const raceService = {
       Object.assign(race, updateData);
       await race.save();
 
+      // Invalidar caché según RF-REDIS-03
+      const raceYear = new Date(race.date).getFullYear();
+      await deleteCache(`race:${raceId}`);
+      await deleteCachePattern(`races:list:${raceYear}`);
+      await deleteCachePattern(`races:list:*`);
+      await deleteCachePattern('standings:*');
+
       return race;
     } catch (error) {
       throw error;
@@ -233,8 +261,17 @@ const raceService = {
       if (!race) {
         throw new Error('Carrera no encontrada');
       }
-
+      
+      const raceYear = new Date(race.date).getFullYear();
+      
+      // Invalidar caché antes de eliminar según RF-REDIS-03
+      await deleteCache(`race:${raceId}`);
+      await deleteCachePattern(`races:list:${raceYear}`);
+      await deleteCachePattern(`races:list:*`);
+      await deleteCachePattern('standings:*');
+      
       await Race.findByIdAndDelete(raceId);
+      
       return { message: 'Carrera eliminada correctamente' };
     } catch (error) {
       throw error;

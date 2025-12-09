@@ -254,20 +254,6 @@ Obtener tabla de posiciones actual
 }
 ```
 
-#### `POST /standings/telemetry`
-Guardar telemetría de un piloto
-
-**Body:**
-```json
-{
-  "driverId": "507f1f77bcf86cd799439011",
-  "speed": 320,
-  "position": 1,
-  "lap": 35,
-  "fuel": 45.5
-}
-```
-
 #### `PUT /standings/leaderboard`
 Actualizar leaderboard en Redis (para carrera activa)
 
@@ -288,9 +274,6 @@ Actualizar leaderboard en Redis (para carrera activa)
   }
 ]
 ```
-
-#### `GET /standings/telemetry/:driverId`
-Obtener telemetría de un piloto específico
 
 ### Health Check
 

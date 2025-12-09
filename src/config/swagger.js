@@ -269,35 +269,6 @@ const options = {
             },
           },
         },
-        Telemetry: {
-          type: 'object',
-          properties: {
-            driverId: {
-              type: 'string',
-              description: 'ID del piloto',
-            },
-            speed: {
-              type: 'number',
-              description: 'Velocidad en km/h',
-              example: 320,
-            },
-            position: {
-              type: 'number',
-              description: 'Posición actual en la carrera',
-              example: 1,
-            },
-            lap: {
-              type: 'number',
-              description: 'Vuelta actual',
-              example: 35,
-            },
-            fuel: {
-              type: 'number',
-              description: 'Combustible restante (%)',
-              example: 45.5,
-            },
-          },
-        },
         Leaderboard: {
           type: 'array',
           items: {
