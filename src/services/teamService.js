@@ -2,6 +2,22 @@ const Team = require('../models/Team');
 const { syncTeamData } = require('../utils/updateHelpers');
 
 const teamService = {
+
+
+   
+  recalcTeamPoints: async (teamId) => {
+    const team = await Team.findById(teamId);
+    if (!team) throw new Error('Equipo no encontrado');
+
+    team.points = (team.drivers || []).reduce(
+      (sum, d) => sum + (d.driverPoints || 0),
+      0
+    );
+
+    await team.save();
+    return team;
+  },
+
   /**
    * Crear un nuevo equipo
    */

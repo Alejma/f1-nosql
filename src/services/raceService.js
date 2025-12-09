@@ -91,13 +91,15 @@ const raceService = {
       // === NUEVO: ACTUALIZAR PUNTOS EN TEAMS ===
       // Para minimizar llamadas, usamos bulkWrite:
       const teamOps = [];
+      const teamIdsTouched = new Set();
 
        for (const result of race.results) {
         // Necesitamos el piloto y su teamId actual
         const driver = await Driver.findById(result.driverId).lean();
         if (!driver || !driver.teamId) continue;
-
-        const teamId = driver.teamId;
+       
+        const teamId = driver.teamId.toString();
+        teamIdsTouched.add(teamId);
 
         // 1) Asegurar que el piloto exista en el array drivers del team (si no, lo añadimos con 0)
         teamOps.push({
@@ -133,8 +135,31 @@ const raceService = {
       }
 
       if (teamOps.length > 0) {
-        await Team.bulkWrite(teamOps, { ordered: false });
+        await Team.bulkWrite(teamOps, { ordered: true });
       }
+
+      await Promise.all(
+      [...teamIdsTouched].map(teamId =>
+        Team.updateOne(
+          { _id: teamId },
+          [
+            {
+              $set: {
+                points: {
+                  $sum: {
+                    $map: {
+                      input: "$drivers",
+                      as: "d",
+                      in: { $ifNull: ["$$d.driverPoints", 0] }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        )
+      )
+    );
 
       return race;
     } catch (error) {

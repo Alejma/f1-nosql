@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const teamController = require('../controllers/teamController');
+const { rebuildTeamPointsFromRaces  } = require('../utils/rebuildTeamPointsFromRaces');
 
 /**
  * @swagger
@@ -72,6 +73,25 @@ router.post('/', teamController.createTeam);
  *                     $ref: '#/components/schemas/Team'
  */
 router.get('/', teamController.getAllTeams);
+
+/**
+ * @swagger
+ * /teams/admin/rebuild-points:
+ *   get:
+ *     summary: Reconstruye puntos y drivers de equipos desde todas las carreras
+ *     tags: [Teams]
+ *     responses:
+ *       200:
+ *         description: Rebuild realizado
+ */
+router.get('/admin/rebuild-points', async (req, res) => {
+  try {
+    await rebuildTeamPointsFromRaces();
+    res.json({ success: true, message: 'Rebuild de puntos completado' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 /**
  * @swagger
@@ -189,6 +209,8 @@ router.put('/:id', teamController.updateTeam);
  *               $ref: '#/components/schemas/Error'
  */
 router.delete('/:id', teamController.deleteTeam);
+
+
 
 module.exports = router;
 

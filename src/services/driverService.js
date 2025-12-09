@@ -1,5 +1,6 @@
 const Driver = require('../models/Driver');
 const Team = require('../models/Team');
+const Race = require('../models/Race');
 const { syncDriverData } = require('../utils/updateHelpers');
 
 const driverService = {
@@ -104,8 +105,35 @@ const driverService = {
           await driver.save();
         }
       }
+
+       // === NUEVO: últimas 5 posiciones del piloto ===
+      const lastRaces = await Race.find(
+        { "results.driverId": driver._id },
+        {
+          name: 1,
+          date: 1,
+          circuit: 1, // si existe en tu schema
+          results: { $elemMatch: { driverId: driver._id } }
+        }
+      ) 
+        .sort({ date: -1 })
+        .limit(5)
+        .lean();
+
+      const last5Positions = lastRaces.map(r => ({
+        raceId: r._id,
+        raceName: r.name,
+        date: r.date,
+        circuit: r.circuit,
+        position: r.results?.[0]?.position ?? null,
+        points: r.results?.[0]?.points ?? 0
+      }));
       
-      return driver;
+      return {
+      ...driver.toObject(),
+      last5Positions
+     };
+
     } catch (error) {
       throw error;
     }
